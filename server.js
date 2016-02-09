@@ -1,9 +1,9 @@
 var Sequelize = require('sequelize');
 var passwordHash = require('password-hash');
 var bodyParser = require('body-parser');
-var db = require('credentials.js');
+var db = require('./credentials.js');
 
-var forceSync = true;
+var forceSync = false;
 
 var sequelize = new Sequelize(db.database,db.user,db.password,{
     host:db.host,
@@ -20,6 +20,9 @@ var Users = sequelize.define('Users', {
 var Patterns = sequelize.define('Patterns', {
   name: Sequelize.STRING,
   type: Sequelize.STRING,
+  fps: Sequelize.FLOAT,
+  frames: Sequelize.INTEGER,
+  pixels: Sequelize.INTEGER
 });
 Patterns.belongsTo(Users, {as: 'Owner'});
 
@@ -37,6 +40,7 @@ Patterns.belongsToMany(Users, {as: 'Votes', through: UserVotes});
 Users.belongsToMany(Patterns, {as: 'Votes', through: UserVotes});
 
 sequelize.sync({"force":forceSync}).then(function() {
+    console.log("synced");
 });
 
 function createUser(email,display,password) {
@@ -50,17 +54,25 @@ function createUser(email,display,password) {
     });
 }
 
-function createPattern(patternName,user,type,data) {
-    if (type == "pixels") data = new Buffer(data, 'base64'); //pixels come as base64 encoded
+function createPattern(patternName,user,type,data,fps,frames,pixels) {
+    if (type == "bitmap") data = new Buffer(data, 'base64'); //bitmaps come as base64 encoded
     if (type == "javascript") data = new Buffer(data); //not necessary, i guess?
+
+    var params = {
+        name: patternName,
+        type: type
+    }
+
+    if (type == "bitmap") {
+        params.fps = fps;
+        params.pixels = pixels;
+        params.frames = frames;
+    }
 
     PatternData.create({
         data:data,
     }).then(function(patternData) {
-        Patterns.create({
-            name: patternName,
-            type: type,
-        }).then(function(pattern) {
+        Patterns.create(params).then(function(pattern) {
             pattern.setOwner(user);
             patternData.setPattern(pattern);
         });
@@ -72,6 +84,11 @@ var express = require('express');
 var app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
+
+app.use(function(req,res,next) {
+    res.header('Access-Control-Allow-Origin: http://flickerstrip.com');
+    next();
+});
 
 var auth = function (req, res, next) {
     var challenge = basicAuth(req);
@@ -108,8 +125,10 @@ app.post('/user/create', function (req, res) {
 });
 
 app.post('/pattern/create',auth,function (req, res) {
-    if (req.body.type != "javascript" && req.body.type != "pixels") return res.sendStatus(500);
-    createPattern(req.body.name,req.user,req.body.type,req.body.data);
+    if (req.body.type != "javascript" && req.body.type != "bitmap") return res.sendStatus(500);
+
+    createPattern(req.body.name,req.user,req.body.type,req.body.data,req.body.fps,req.body.frames,req.body.pixels);
+
     res.sendStatus(200);
 });
 
@@ -136,7 +155,12 @@ app.get('/pattern',function (req, res) {
 });
 
 app.get('/pattern/:id',function (req, res) {
-    PatternData.findOne({where:{patternId:req.params.id}}).then(function(patterndata) {
-        res.status(200).send(patterndata.data);
+    Patterns.findOne({where:{id:req.params.id}}).then(function(pattern) {
+        PatternData.findOne({where:{patternId:req.params.id}}).then(function(patterndata) {
+            console.log("raw",patterndata.data);
+            if (pattern.type == "bitmap") patterndata.data = patterndata.data.toString('base64');
+            console.log("b64",patterndata.data);
+            res.status(200).send(patterndata.data);
+        });
     });
 });
