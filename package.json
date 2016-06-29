@@ -3,6 +3,7 @@
     "basic-auth": "^1.0.3",
     "body-parser": "^1.14.1",
     "express": "^4.13.3",
+    "extend": "^3.0.0",
     "mysql": "^2.9.0",
     "node-uuid": ">= 1.4.1",
     "password-hash": "^1.2.2",
