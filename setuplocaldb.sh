@@ -1,0 +1,1 @@
+echo "GRANT USAGE ON *.* TO 'flickerstrip'@'localhost'; DROP USER 'flickerstrip'@'localhost'; DROP DATABASE IF EXISTS ebdb; CREATE DATABASE ebdb; CREATE USER 'flickerstrip'@'localhost' IDENTIFIED BY 'XPTsg1p2r18LTeoCS3ZN'; GRANT ALL PRIVILEGES ON * . * TO 'flickerstrip'@'localhost';" | mysql -u root
