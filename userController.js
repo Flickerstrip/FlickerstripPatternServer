@@ -1,7 +1,8 @@
 var router = require('express').Router();
-var db = require("./db.js");
 var auth = require("./authentication.js");
 
+
+/*
 function createUser(email,display,password) {
     var hash = passwordHash.generate(password);
 
@@ -12,11 +13,13 @@ function createUser(email,display,password) {
         lastlogin: null,
     });
 }
+*/
 
-router.post('/challenge',auth,function (req, res) {
+router.post('/challenge',auth(true),function (req, res) {
     res.status(200).send(req.user);
 });
 
+/*
 router.post('/create', function (req, res) {
     Users.findOne({where:{email:req.body.email}}).then(function(user) {
         if (user) return res.status(500).send("User Exists!");
@@ -25,14 +28,15 @@ router.post('/create', function (req, res) {
         });
     });
 });
+*/
 
 //Handle session login
-router.post('/login',auth,function (req, res) {
+router.post('/login',auth(true),function (req, res) {
     req.session.user = req.user;
     res.status(200).send(req.user);
 });
 
-router.post('/logout',auth,function (req, res) {
+router.post('/logout',auth(true),function (req, res) {
     req.session.user = null;
     res.status(200).send("OK");
 });
@@ -52,6 +56,5 @@ router.get('/:id/patterns',function (req, res) {
         res.status(200).send(patterns);
     });
 });
-
 
 module.exports = router;

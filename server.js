@@ -2,8 +2,10 @@ var bodyParser = require('body-parser');
 var db = require("./db.js");
 var app = require('express')();
 var session = require('express-session');
-var auth = require("./authentication.js");
-var credentials = require("./credentials.js");
+var path = require("path");
+
+var env       = process.env.NODE_ENV || "development";
+var config    = require(path.join(__dirname, 'config', 'config.json'))[env];
 
 //This saves the raw body of the incoming request into a separate variable (see: http://stackoverflow.com/questions/18710225/node-js-get-raw-request-body-using-express)
 var rawBodySaver = function (req, res, buf, encoding) {
@@ -12,10 +14,10 @@ var rawBodySaver = function (req, res, buf, encoding) {
   }
 }
 
-app.use(session({secret: credentials.sessionSecret}));
-app.use(bodyParser.json({ verify: rawBodySaver }));
-app.use(bodyParser.urlencoded({ verify: rawBodySaver, extended: true }));
-app.use(bodyParser.raw({ verify: rawBodySaver, type: '*/*' }));
+app.use(session({secret: config.sessionSecret}));
+app.use(bodyParser.json({limit: '50mb', verify: rawBodySaver }));
+app.use(bodyParser.urlencoded({limit: '50mb',verify: rawBodySaver, extended: true }));
+app.use(bodyParser.raw({limit: '50mb',verify: rawBodySaver, type: '*/*' }));
 
 app.use(function(req,res,next) {
     res.setHeader("Access-Control-Allow-Origin",process.env.DEBUG == 1 ? "http://localhost:4000" : "http://flickerstrip.com");

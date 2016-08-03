@@ -13,49 +13,50 @@ function createPattern(user,pattern,cb) {
         frames: pattern.frames,
     }
 
-    console.log("creating pat with user",user);
-    console.log("pattern table params",patternTableParams);
     PatternPixelData.create({
         data:new Buffer(pattern.pixelData),
     }).then(function(patternPixelData) {
-        console.log("done creating pixel data");
         if (pattern.code) {
-            console.log("creating code");
             PatternCodeSnippets.create({
                 data:new Buffer(pattern.code),
             }).then(function(patternCodeSnippet) {
-                console.log("done creating coded");
                 Patterns.create(patternTableParams).then(function(dbPattern) {
-                    console.log("done creating pttern");
                     dbPattern.setOwner(user);
                     patternPixelData.setPattern(dbPattern);
                     patternCodeSnippet.setPattern(dbPattern);
-                    if (cb) cb();
+                    if (cb) cb(dbPattern);
                 });
             });
         } else {
-            console.log("no code");
             Patterns.create(patternTableParams).then(function(dbPattern) {
-                console.log("done creating pttern");
                 dbPattern.setOwner(user);
                 patternPixelData.setPattern(dbPattern);
-                if (cb) cb();
+                if (cb) cb(dbPattern);
             });
         }
     });
 }
 
-router.post('/create',auth,function (req, res) {
+router.post('/create',auth(true),function (req, res) {
     var pattern = new PatternClass();
-    pattern.deserializeFromJSON(req.rawBody);
+    pattern.fromJSON(req.rawBody);
 
-    createPattern(req.user,pattern,function() {
-        res.sendStatus(200);
+    createPattern(req.user,pattern,function(obj) {
+        var pattern = new PatternClass();
+        _.extend(pattern,{
+            id: obj.id,
+            name: obj.name,
+            fps: obj.fps,
+            frames: obj.frames,
+            pixels: obj.pixels,
+            published: obj.published === 1,
+        });
+        res.status(200).send(pattern);
     });
 });
 
-router.post('/delete',auth,function (req, res) {
-    Patterns.findOne({where:{id:req.body.id},include:[{model:Users,as:'Owner',attributes:['id','display']}]}).then(function(pattern) {
+router.post('/:id/delete',auth(true),function (req, res) {
+    Patterns.findOne({where:{id:req.params.id},include:[{model:Users,as:'Owner',attributes:['id','display']}]}).then(function(pattern) {
         console.log("Deleting pattern",pattern.name);
         pattern.destroy().then(function() {
             res.sendStatus(200);
@@ -63,13 +64,73 @@ router.post('/delete',auth,function (req, res) {
     });
 });
 
-router.get('/',function (req, res) {
-    Patterns.findAll({include:[{model:Users,as:'Owner',attributes:['id','display']}]}).then(function(patterns) {
-        res.status(200).send(JSON.stringify(patterns));
+//paginate with?size=20&page=0
+var paginate = function(req,res,next) {
+    req.page = parseInt(req.query.page) || 0;
+    req.limit = parseInt(req.query.size) || 10;
+    req.offset = req.limit * (req.page);
+    next();
+}
+//TODO break pagination out into better middlewear
+router.get('/',auth(false),paginate,function (req, res) {
+    var sortBy = req.query.sortBy ? req.query.sortBy.split(" ") : ["createdAt","DESC"];
+    if (sortBy.length == 1) sortBy.push("ASC");
+
+    var sequelizeSortBy = sortBy.slice(0)
+    if (sequelizeSortBy[0] == "rating") sequelizeSortBy[0] = sequelize.col("PatternScore.score");
+
+    var opt = {order:[sequelizeSortBy],raw:true,offset:req.offset,limit:req.limit,where:{published:true},include:[{model:PatternScores,where:{PatternId: Sequelize.col('patterns.id')},required:false},{model:Users,as:'Owner',attributes:['id','display']}]};
+    var showAll = req.isRoot && req.query.all !== undefined;
+    if (showAll) delete opt.where;
+    if (req.query.includeData !== undefined) {
+        opt.include.push({model:PatternPixelData,attributes:['data']});
+    }
+    if (req.user) {
+        opt.include.push({
+            model:Users,
+            as:"Vote",
+            where: {
+                id: req.user.id,
+            },
+            required: false,
+        });
+    }
+    var countOpt = showAll ? {} : {where:{published:true}};
+    Patterns.count(countOpt).then(function(count) {
+        Patterns.findAll(opt).then(function(patterns) {
+            patterns = _.map(patterns,function(obj) {
+                var pixelData = obj["PatternPixelDatum.data"];
+                var pattern = new PatternClass();
+                _.extend(pattern,{
+                    id: obj.id,
+                    name: obj.name,
+                    fps: obj.fps,
+                    frames: obj.frames,
+                    pixels: obj.pixels,
+                    owner: {
+                        id: obj["OwnerId"],
+                        display: obj["Owner.display"],
+                    },
+                    published: obj.published === 1,
+                    points: obj["PatternScore.points"],
+                });
+                if (obj["Vote.UserVotes.score"]) pattern.vote = obj["Vote.UserVotes.score"];
+                if (pixelData) pattern.pixelData = Array.prototype.slice.call(pixelData, 0);
+                return pattern;
+            });
+            res.status(200).send(JSON.stringify({
+                results:patterns,
+                page:req.page,
+                pageSize:req.limit,
+                totalPages: Math.ceil(count/req.limit),
+                sortBy: sortBy.join(" "),
+                total: count,
+            }));
+        });
     });
 });
 
-router.post('/:id/update',function (req, res) {
+router.post('/:id/update',auth(true),function (req, res) {
     Patterns.findOne({
         where:{id:req.params.id},
         include: [{
@@ -84,25 +145,60 @@ router.post('/:id/update',function (req, res) {
         },
         ]
     }).then(function(dbPattern) {
+        if (!req.isRoot && dbPattern.OwnerId != req.user.id) return res.status(403).send("You don't own this pattern");
+
         var pattern = new PatternClass();
-        pattern.deserializeFromJSON(req.rawBody);
+        pattern.fromJSON(req.rawBody);
 
         dbPattern.name = pattern.name;
         dbPattern.fps = pattern.fps;
         dbPattern.frames = pattern.frames;
         dbPattern.pixels = pattern.pixels;
+        dbPattern.published = pattern.published;
 
-        dbPattern.save().then(function() {
+        dbPattern.save().then(function(dbPattern) {
             //update body
             dbPattern.PatternPixelDatum.data = new Buffer(pattern.pixelData);
-            dbPattern.PatternPixelDatum.save().then(function() {
-                res.status(200).send("OK");
+            dbPattern.PatternPixelDatum.save().then(function(patternData) {
+                var pattern = new PatternClass();
+                _.extend(pattern,{
+                    id: dbPattern.id,
+                    name: dbPattern.name,
+                    fps: dbPattern.fps,
+                    frames: dbPattern.frames,
+                    pixels: dbPattern.pixels,
+                    published: dbPattern.published == true,
+                });
+                res.status(200).send(pattern);
             });
         });
     });
 });
 
-router.get('/:id',function (req, res) {
+router.post('/:id/vote',auth(true),function (req, res) {
+    var vote = req.body.score;
+    if (vote != 1 && vote != -1) return res.sendStatus(500);
+
+    UserVotes.findOne({
+        where:{userId:req.user.id,patternId:req.params.id}
+    }).then(function(found) {
+        if (found) found.destroy();
+
+        Patterns.findOne({
+            where:{id:req.params.id},
+        }).then(function(pattern) {
+            UserVotes.create({
+                score: vote,
+                UserId: req.user.id,
+                PatternId: pattern.id
+            }).then(function(vote) {
+                res.sendStatus(200);
+            });
+        });
+    });
+});
+
+router.get('/:id',auth(false),function (req, res) {
     Patterns.findOne({
         where:{id:req.params.id},
         raw: true,
@@ -128,12 +224,13 @@ router.get('/:id',function (req, res) {
             fps: obj.fps,
             frames: obj.frames,
             pixels: obj.pixels,
+            published: obj.published,
             code: code,
             pixelData: Array.prototype.slice.call(pixelData, 0),
         });
 
         res.contentType("application/json");
-        res.status(200).send(pattern.serializeToJSON());
+        res.status(200).send(JSON.stringify(pattern));
     });
 
     /*

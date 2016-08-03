@@ -95,14 +95,22 @@ define([ "underscore","tinycolor2","base64-js" ],
             clone:function() {
                 return _.extend(new This(),this);
             },
-            serializeToJSON:function() {
-                return JSON.stringify(this,function(key,value) {
-                    if (key.startsWith("_")) return undefined;
-                    if (key == "pixelData" && value) return b64.fromByteArray(value);
-                    return value;
-                });
+            toJSON:function() {
+                var obj = {};
+                for (var key in this) {
+                    var value = this[key];
+                    if (this.hasOwnProperty(key)) {
+                        if (key.startsWith("_")) return undefined;
+                        if (key == "pixelData" && value) {
+                            obj[key] = b64.fromByteArray(value);
+                        } else {
+                            obj[key] = value;
+                        }
+                    }
+                }
+                return obj;
             },
-            deserializeFromJSON:function(json) {
+            fromJSON:function(json) {
                 var o = JSON.parse(json);
                 while(o.pixelData.length % 4 != 0) o.pixelData += "=";
                 o.pixelData = b64.toByteArray(o.pixelData);
