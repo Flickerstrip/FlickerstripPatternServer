@@ -18,7 +18,6 @@ module.exports = (function () {
     this.Users = this.sequelize.define('Users', {
       email: Sequelize.STRING,
       display: Sequelize.STRING,
-      passwordHash: Sequelize.STRING,
       lastlogin: Sequelize.DATE,
       phpbbId: Sequelize.INTEGER,
     });

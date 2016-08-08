@@ -3,10 +3,14 @@ var _ = require("underscore");
 var passwordHash = require('password-hash');
 var db = require("./db.js");
 var basicAuth = require('basic-auth');
+var path = require("path");
+
+var env       = process.env.NODE_ENV || "development";
+var config    = require(path.join(__dirname, 'config', 'config.json'))[env];
 
 module.exports = function(required) {
     function validateCredentials(email,password,cb) {
-        var query = "SELECT user_id,user_type,user_email,username,user_password FROM `phpbb_users` WHERE user_email='"+email+"'";
+        var query = "SELECT user_id,user_type,user_email,username,user_password FROM `"+config.phpbb_prefix+"users` WHERE user_email='"+email+"'";
         db.phpbb.query(query, { type: sequelize.QueryTypes.SELECT}).then(function(results) {
             if (results.length == 0) {
                 return cb(false,false,"User doesn't exist!");
@@ -38,7 +42,6 @@ module.exports = function(required) {
                 Users.findOne({where:{phpbbId:bbuser.user_id}}).then(function(user) {
                     if (user) {
                         //we found the user based on their phpbbId
-                        console.log("found user by phpbbid");
                         user.email = bbuser.user_email;
                         user.display = bbuser.username;
                         user.lastlogin = new Date();
@@ -49,7 +52,6 @@ module.exports = function(required) {
                     Users.findOne({where:{email:challenge.name}}).then(function(user) {
                         if (user) {
                             //we found the user based on their email
-                            console.log("found user by email");
                             user.phpbbId = bbuser.user_id;
                             user.display = bbuser.username;
                             user.lastlogin = new Date();
@@ -57,7 +59,6 @@ module.exports = function(required) {
                             return cb(user);
                         } else {
                             //we havent found this user by ID or by email, let's create an entry
-                            console.log("creating user",bbuser);
                             Users.create({
                                 email: bbuser.user_email,
                                 phpbbId: bbuser.user_id,

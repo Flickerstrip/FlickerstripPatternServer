@@ -100,7 +100,7 @@ define([ "underscore","tinycolor2","base64-js" ],
                 for (var key in this) {
                     var value = this[key];
                     if (this.hasOwnProperty(key)) {
-                        if (key.startsWith("_")) return undefined;
+                        if (key.startsWith("_")) continue;
                         if (key == "pixelData" && value) {
                             obj[key] = b64.fromByteArray(value);
                         } else {

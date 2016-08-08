@@ -11,6 +11,7 @@ function createPattern(user,pattern,cb) {
         fps: pattern.fps,
         pixels: pattern.pixels,
         frames: pattern.frames,
+        published: pattern.published,
     }
 
     PatternPixelData.create({
@@ -79,7 +80,7 @@ router.get('/',auth(false),paginate,function (req, res) {
     var sequelizeSortBy = sortBy.slice(0)
     if (sequelizeSortBy[0] == "rating") sequelizeSortBy[0] = sequelize.col("PatternScore.score");
 
-    var opt = {order:[sequelizeSortBy],raw:true,offset:req.offset,limit:req.limit,where:{published:true},include:[{model:PatternScores,where:{PatternId: Sequelize.col('patterns.id')},required:false},{model:Users,as:'Owner',attributes:['id','display']}]};
+    var opt = {order:[sequelizeSortBy],raw:true,offset:req.offset,limit:req.limit,where:{published:true},include:[{model:PatternScores,where:{PatternId: Sequelize.col('Patterns.id')},required:false},{model:Users,as:'Owner',attributes:['id','display']}]};
     var showAll = req.isRoot && req.query.all !== undefined;
     if (showAll) delete opt.where;
     if (req.query.includeData !== undefined) {
@@ -135,12 +136,12 @@ router.post('/:id/update',auth(true),function (req, res) {
         where:{id:req.params.id},
         include: [{
             model: PatternPixelData,
-            where: { PatternId: Sequelize.col('patterns.id') },
+            where: { PatternId: Sequelize.col('Patterns.id') },
             required: false,
         },
         {
             model: PatternCodeSnippets,
-            where: { PatternId: Sequelize.col('patterns.id') },
+            where: { PatternId: Sequelize.col('Patterns.id') },
             required: false,
         },
         ]
@@ -204,14 +205,15 @@ router.get('/:id',auth(false),function (req, res) {
         raw: true,
         include: [{
             model: PatternPixelData,
-            where: { PatternId: Sequelize.col('patterns.id') },
+            where: { PatternId: Sequelize.col('Patterns.id') },
             required: false,
         },
         {
             model: PatternCodeSnippets,
-            where: { PatternId: Sequelize.col('patterns.id') },
+            where: { PatternId: Sequelize.col('Patterns.id') },
             required: false,
         },
+        {model:Users,as:'Owner',attributes:['id','display']}
         ]
     }).then(function(obj) {
         var pixelData = obj["PatternPixelDatum.data"];
@@ -226,6 +228,10 @@ router.get('/:id',auth(false),function (req, res) {
             pixels: obj.pixels,
             published: obj.published,
             code: code,
+            owner: {
+                id: obj["OwnerId"],
+                display: obj["Owner.display"],
+            },
             pixelData: Array.prototype.slice.call(pixelData, 0),
         });
 
