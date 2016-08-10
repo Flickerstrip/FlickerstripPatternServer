@@ -45,6 +45,18 @@ router.get('/current',function (req, res) {
     res.status(200).send(req.session.user);
 });
 
+router.get('/test',function(req,res) {
+    var db = require("./db.js");
+    var path = require("path");
+    var env       = process.env.NODE_ENV || "development";
+    var config    = require(path.join(__dirname, 'config', 'config.json'))[env];
+    var query = "SELECT user_id,user_type,user_email,username,user_password FROM `"+config.phpbb.prefix+"users`";
+    db.phpbb.query(query, { type: sequelize.QueryTypes.SELECT}).then(function(results) {
+        console.log("got results",results);
+        res.status(200).send("OK");
+    });
+});
+
 router.get('/:id',function (req, res) {
     Users.findOne({where:{id:req.params.id}}).then(function(user) {
         res.status(200).send(user);

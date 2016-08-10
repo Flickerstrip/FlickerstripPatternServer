@@ -12,7 +12,7 @@ var forceSync = false;
 module.exports = (function () {
     this.sequelize = new Sequelize(config.database, config.username, config.password, config);
 
-    this.phpbb = new Sequelize(config.phpbb_database, config.phpbb_username, config.phpbb_password, config);
+    this.phpbb = new Sequelize(config.phpbb.database, config.phpbb.username, config.phpbb.password, config.phpbb);
     this.phpbb.sync().then(function() {});
 
     this.Users = this.sequelize.define('Users', {

@@ -1,6 +1,5 @@
 var bcrypt = require("bcrypt-nodejs");
 var _ = require("underscore");
-var passwordHash = require('password-hash');
 var db = require("./db.js");
 var basicAuth = require('basic-auth');
 var path = require("path");
@@ -10,7 +9,7 @@ var config    = require(path.join(__dirname, 'config', 'config.json'))[env];
 
 module.exports = function(required) {
     function validateCredentials(email,password,cb) {
-        var query = "SELECT user_id,user_type,user_email,username,user_password FROM `"+config.phpbb_prefix+"users` WHERE user_email='"+email+"'";
+        var query = "SELECT user_id,user_type,user_email,username,user_password FROM `"+config.phpbb.prefix+"users` WHERE user_email='"+email+"'";
         db.phpbb.query(query, { type: sequelize.QueryTypes.SELECT}).then(function(results) {
             if (results.length == 0) {
                 return cb(false,false,"User doesn't exist!");

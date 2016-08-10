@@ -1,13 +1,8 @@
-config.json
-node_modules
 npm-debug.log
 .*.swp
 .DS_Store
-bundle.zip
-testdata.txt
-credentials.js
-/cmysql.sh
-*.sql
+*.sh
+/migrations
 
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
