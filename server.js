@@ -20,7 +20,7 @@ app.use(bodyParser.urlencoded({limit: '50mb',verify: rawBodySaver, extended: tru
 app.use(bodyParser.raw({limit: '50mb',verify: rawBodySaver, type: '*/*' }));
 
 app.use(function(req,res,next) {
-    res.setHeader("Access-Control-Allow-Origin",process.env.DEBUG == 1 ? "http://localhost:4000" : "https://hohmbody.com");
+    res.setHeader("Access-Control-Allow-Origin",process.env.DEBUG == 1 ? "http://localhost" : "https://hohmbody.com");
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     next();
