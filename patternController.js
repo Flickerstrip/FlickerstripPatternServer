@@ -81,12 +81,17 @@ function getPatterns(sortBy,offset,limit,includeUnpublished,includeData,withUser
         };
         if (includeData) fields["PatternPixelDatum.data"] = "d.data";
 
+        var query = "FROM Patterns p, PatternScores s,Users u,PatternPixelData d WHERE p.published=1 AND p.id=s.patternId AND u.id=p.OwnerId AND p.id=d.patternId ORDER BY s.score DESC LIMIT "+offset+", "+limit;
+        if (withUserVotes) {
+            fields["Vote.UserVotes.score"] = "v.score";
+            query = "FROM PatternScores s,Users u,PatternPixelData d, Patterns p LEFT OUTER JOIN UserVotes v ON v.PatternId=p.id AND v.UserId="+withUserVotes.id+" WHERE p.published=1 AND p.id=s.patternId AND u.id=p.OwnerId AND p.id=d.patternId ORDER BY s.score DESC LIMIT "+offset+", "+limit;
+        }
+
         var fieldString = _.reduce(fields,function(memo,value,key) {
             return memo+", "+value+" AS `"+key+"`";
         },"");
         fieldString = fieldString.substring(2);
 
-        var query = "FROM Patterns p, PatternScores s,Users u,PatternPixelData d WHERE p.published=1 AND p.id=s.patternId AND u.id=p.OwnerId AND p.id=d.patternId ORDER BY s.score DESC LIMIT "+offset+", "+limit;
         sequelize.query("SELECT count(*) AS count "+query,{type:sequelize.QueryTypes.SELECT}).then(function(res) {
             var count = res[0].count;
             sequelize.query("SELECT "+fieldString+" "+query,{type:sequelize.QueryTypes.SELECT}).then(function(patterns) {
