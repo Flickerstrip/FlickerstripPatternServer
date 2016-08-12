@@ -76,14 +76,22 @@ module.exports = function(required) {
         });
     }
 
+    var debugUser = null; //"julianh2o@gmail.com"; //DEBUGGING ONLY, force single user always
     return (function (req, res, next) {
-        getUser(req,res,function(user) {
-            if (!user && required) return res.sendStatus(401);
+        if (debugUser) {
+            Users.findOne({where:{email:debugUser}}).then(function(user) {
+                req.user = user;
+                next();
+            });
+        } else {
+            getUser(req,res,function(user) {
+                if (!user && required) return res.sendStatus(401);
 
-            req.user = user;
-            req.isRoot = user && user.email == "admin@hohmbody.com";
-            next();
-        })
+                req.user = user;
+                req.isRoot = user && user.email == "admin@hohmbody.com";
+                next();
+            })
+        }
     })
 }
 

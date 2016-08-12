@@ -65,6 +65,60 @@ router.post('/:id/delete',auth(true),function (req, res) {
     });
 });
 
+//TODO clean this up a bit.. ugh
+function getPatterns(sortBy,offset,limit,includeUnpublished,includeData,withUserVotes,cb) {
+    if (sortBy[0] == "rating") {
+        var fields = {
+            "id":"p.id",
+            "name":"p.name",
+            "fps":"p.fps",
+            "pixels":"p.pixels",
+            "frames":"p.frames",
+            "published":"p.published",
+            "OwnerId":"p.OwnerId",
+            "Owner.display":"u.display",
+            "PatternScore.points":"s.points",
+        };
+        if (includeData) fields["PatternPixelDatum.data"] = "d.data";
+
+        var fieldString = _.reduce(fields,function(memo,value,key) {
+            return memo+", "+value+" AS `"+key+"`";
+        },"");
+        fieldString = fieldString.substring(2);
+
+        var query = "FROM Patterns p, PatternScores s,Users u,PatternPixelData d WHERE p.published=1 AND p.id=s.patternId AND u.id=p.OwnerId AND p.id=d.patternId ORDER BY s.score DESC LIMIT "+offset+", "+limit;
+        sequelize.query("SELECT count(*) AS count "+query,{type:sequelize.QueryTypes.SELECT}).then(function(res) {
+            var count = res[0].count;
+            sequelize.query("SELECT "+fieldString+" "+query,{type:sequelize.QueryTypes.SELECT}).then(function(patterns) {
+                cb(count,patterns);
+            });
+        });
+    } else {
+        var opt = {order:[sortBy],raw:true,offset:offset,limit:limit,where:{published:true},include:[{model:PatternScores,as:'PatternScore',where:{PatternId: Sequelize.col('Patterns.id')},required:false},{model:Users,as:'Owner',attributes:['id','display']}]};
+        if (includeUnpublished) delete opt.where;
+        if (includeData) {
+            opt.include.push({model:PatternPixelData,attributes:['data']});
+        }
+        if (withUserVotes) {
+            opt.include.push({
+                model:Users,
+                as:"Vote",
+                where: {
+                    id: withUserVotes.id,
+                },
+                required: false,
+            });
+        }
+
+        var countOpt = includeUnpublished ? {} : {where:{published:true}};
+        Patterns.count(countOpt).then(function(count) {
+            Patterns.findAll(opt).then(function(patterns) {
+                cb(count,patterns);
+            });
+        });
+    }
+}
+
 //paginate with?size=20&page=0
 var paginate = function(req,res,next) {
     req.page = parseInt(req.query.page) || 0;
@@ -77,58 +131,40 @@ router.get('/',auth(false),paginate,function (req, res) {
     var sortBy = req.query.sortBy ? req.query.sortBy.split(" ") : ["createdAt","DESC"];
     if (sortBy.length == 1) sortBy.push("ASC");
 
-    var sequelizeSortBy = sortBy.slice(0)
-    if (sequelizeSortBy[0] == "rating") sequelizeSortBy[0] = sequelize.col("PatternScore.score");
-
-    var opt = {order:[sequelizeSortBy],raw:true,offset:req.offset,limit:req.limit,where:{published:true},include:[{model:PatternScores,where:{PatternId: Sequelize.col('Patterns.id')},required:false},{model:Users,as:'Owner',attributes:['id','display']}]};
-    var showAll = req.isRoot && req.query.all !== undefined;
-    if (showAll) delete opt.where;
-    if (req.query.includeData !== undefined) {
-        opt.include.push({model:PatternPixelData,attributes:['data']});
-    }
-    if (req.user) {
-        opt.include.push({
-            model:Users,
-            as:"Vote",
-            where: {
-                id: req.user.id,
-            },
-            required: false,
-        });
-    }
-    var countOpt = showAll ? {} : {where:{published:true}};
-    Patterns.count(countOpt).then(function(count) {
-        Patterns.findAll(opt).then(function(patterns) {
-            patterns = _.map(patterns,function(obj) {
-                var pixelData = obj["PatternPixelDatum.data"];
-                var pattern = new PatternClass();
-                _.extend(pattern,{
-                    id: obj.id,
-                    name: obj.name,
-                    fps: obj.fps,
-                    frames: obj.frames,
-                    pixels: obj.pixels,
-                    owner: {
-                        id: obj["OwnerId"],
-                        display: obj["Owner.display"],
-                    },
-                    published: obj.published === 1,
-                    points: obj["PatternScore.points"],
-                });
-                if (obj["Vote.UserVotes.score"]) pattern.vote = obj["Vote.UserVotes.score"];
-                if (pixelData) pattern.pixelData = Array.prototype.slice.call(pixelData, 0);
-                return pattern;
+    var includeUnpublished = req.isRoot && req.query.all !== undefined;
+    var includeData = req.query.includeData !== undefined;
+    getPatterns(req.query.sortBy.split(" "),req.offset,req.limit,includeUnpublished,includeData,req.user,function(count,patterns) {
+        patterns = _.map(patterns,function(obj) {
+            var pixelData = obj["PatternPixelDatum.data"];
+            var pattern = new PatternClass();
+            _.extend(pattern,{
+                id: obj.id,
+                name: obj.name,
+                fps: obj.fps,
+                frames: obj.frames,
+                pixels: obj.pixels,
+                owner: {
+                    id: obj["OwnerId"],
+                    display: obj["Owner.display"],
+                },
+                published: obj.published === 1,
+                points: obj["PatternScore.points"],
             });
-            res.status(200).send(JSON.stringify({
-                results:patterns,
-                page:req.page,
-                pageSize:req.limit,
-                totalPages: Math.ceil(count/req.limit),
-                sortBy: sortBy.join(" "),
-                total: count,
-            }));
+            if (obj["Vote.UserVotes.score"]) pattern.vote = obj["Vote.UserVotes.score"];
+            if (pixelData) pattern.pixelData = Array.prototype.slice.call(pixelData, 0);
+            return pattern;
         });
+        res.status(200).send(JSON.stringify({
+            results:patterns,
+            page:req.page,
+            pageSize:req.limit,
+            totalPages: Math.ceil(count/req.limit),
+            sortBy: sortBy.join(" "),
+            total: count,
+        }));
+        
     });
+
 });
 
 router.post('/:id/update',auth(true),function (req, res) {
