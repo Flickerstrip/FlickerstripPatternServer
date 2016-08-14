@@ -138,7 +138,7 @@ router.get('/',auth(false),paginate,function (req, res) {
 
     var includeUnpublished = req.isRoot && req.query.all !== undefined;
     var includeData = req.query.includeData !== undefined;
-    getPatterns(req.query.sortBy.split(" "),req.offset,req.limit,includeUnpublished,includeData,req.user,function(count,patterns) {
+    getPatterns(sortBy,req.offset,req.limit,includeUnpublished,includeData,req.user,function(count,patterns) {
         patterns = _.map(patterns,function(obj) {
             var pixelData = obj["PatternPixelDatum.data"];
             var pattern = new PatternClass();
