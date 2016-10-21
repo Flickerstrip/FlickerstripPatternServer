@@ -39,6 +39,7 @@ function createPattern(user,pattern,cb) {
 }
 
 router.post('/create',auth(true),function (req, res) {
+    console.log("raw body",req.rawBody);
     var pattern = new PatternClass();
     pattern.fromJSON(req.rawBody);
 
@@ -192,27 +193,28 @@ router.post('/:id/update',auth(true),function (req, res) {
         var pattern = new PatternClass();
         pattern.fromJSON(req.rawBody);
 
-        dbPattern.name = pattern.name;
-        dbPattern.fps = pattern.fps;
-        dbPattern.frames = pattern.frames;
-        dbPattern.pixels = pattern.pixels;
-        dbPattern.published = pattern.published;
+        _.extend(dbPattern,pattern);
 
-        dbPattern.save().then(function(dbPattern) {
-            //update body
-            dbPattern.PatternPixelDatum.data = new Buffer(pattern.pixelData);
-            dbPattern.PatternPixelDatum.save().then(function(patternData) {
-                var pattern = new PatternClass();
-                _.extend(pattern,{
-                    id: dbPattern.id,
-                    name: dbPattern.name,
-                    fps: dbPattern.fps,
-                    frames: dbPattern.frames,
-                    pixels: dbPattern.pixels,
-                    published: dbPattern.published == true,
-                });
-                res.status(200).send(pattern);
+        dbPattern.update(pattern,{fields: _.keys(pattern)}).then(function(dbPattern) {
+            var pattern = new PatternClass();
+            _.extend(pattern,{
+                id: dbPattern.id,
+                name: dbPattern.name,
+                fps: dbPattern.fps,
+                frames: dbPattern.frames,
+                pixels: dbPattern.pixels,
+                published: dbPattern.published == true,
             });
+
+            //update body
+            if (pattern.pixelData) {
+                dbPattern.PatternPixelDatum.data = new Buffer(pattern.pixelData);
+                dbPattern.PatternPixelDatum.save().then(function(patternData) {
+                    res.status(200).send(pattern);
+                });
+            } else {
+                res.status(200).send(pattern);
+            }
         });
     });
 });
@@ -237,6 +239,54 @@ router.post('/:id/vote',auth(true),function (req, res) {
                 res.sendStatus(200);
             });
         });
+    });
+});
+
+router.get('/loadPatternData',auth(false),function (req,res) {
+    var ids = _.map(req.query.ids.split(","),function(x){return parseInt(x);});
+    Patterns.findAll({
+        where:{id: {in: ids}},
+        raw: true,
+        include: [{
+            model: PatternPixelData,
+            where: { PatternId: Sequelize.col('Patterns.id') },
+            required: false,
+        },
+        {
+            model: PatternCodeSnippets,
+            where: { PatternId: Sequelize.col('Patterns.id') },
+            required: false,
+        },
+        {model:Users,as:'Owner',attributes:['id','display']}
+        ]
+    }).then(function(results) {
+        var patterns = {};
+
+        _.each(results,function(obj) {
+            var pixelData = obj["PatternPixelDatum.data"];
+            var code = obj["PatternCodeSnippet.data"] ? obj["PatternCodeSnippet.data"].toString("ascii") : null;
+
+            var pattern = new PatternClass();
+            _.extend(pattern,{
+                id: obj.id,
+                name: obj.name,
+                fps: obj.fps,
+                frames: obj.frames,
+                pixels: obj.pixels,
+                published: obj.published,
+                code: code,
+                owner: {
+                    id: obj["OwnerId"],
+                    display: obj["Owner.display"],
+                },
+                pixelData: Array.prototype.slice.call(pixelData, 0),
+            });
+
+            patterns[obj.id] = pattern;
+        });
+
+        res.contentType("application/json");
+        res.status(200).send(JSON.stringify(patterns));
     });
 });
 

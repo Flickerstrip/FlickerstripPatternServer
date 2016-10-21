@@ -35,8 +35,6 @@ define([ "underscore","tinycolor2","base64-js" ],
             _controls: null,
 
             init: function() {
-                this.name = "New Lightwork";
-                this.palette = defaultPalette;
             },
 
             setDimensions(pixels,frames) {
@@ -111,9 +109,14 @@ define([ "underscore","tinycolor2","base64-js" ],
                 return obj;
             },
             fromJSON:function(json) {
+                delete this.name;
+                delete this.palette;
+
                 var o = JSON.parse(json);
-                while(o.pixelData.length % 4 != 0) o.pixelData += "=";
-                o.pixelData = b64.toByteArray(o.pixelData);
+                if (o.pixelData) {
+                    while(o.pixelData.length % 4 != 0) o.pixelData += "=";
+                    o.pixelData = b64.toByteArray(o.pixelData);
+                }
                 _.extend(this,o);
             },
                                 /*
@@ -129,8 +132,12 @@ define([ "underscore","tinycolor2","base64-js" ],
             */
         });
 
+        This.BLANK_PATTERN = new This();
+        _.extend(This.BLANK_PATTERN,{name:"New Lightwork",palette:_.clone(defaultPalette)});
+
         This.DEFAULT_PATTERN = new This();
-        _.extend(This.DEFAULT_PATTERN,{pixels:7,fps:3,frames:7,pixelData:[0,0,0,0,0,0,0,0,0,251,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,251,255,0,255,170,0,251,255,0,0,0,0,0,0,0,0,0,0,251,255,0,255,170,0,255,0,0,255,170,0,251,255,0,0,0,0,251,255,0,255,170,0,255,0,0,255,255,255,255,0,0,255,170,0,251,255,0,0,0,0,251,255,0,255,170,0,255,0,0,255,170,0,251,255,0,0,0,0,0,0,0,0,0,0,251,255,0,255,170,0,251,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,251,255,0,0,0,0,0,0,0,0,0,0]});
+        _.extend(This.DEFAULT_PATTERN,This.BLANK_PATTERN,{pixels:7,fps:3,frames:7,pixelData:[0,0,0,0,0,0,0,0,0,251,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,251,255,0,255,170,0,251,255,0,0,0,0,0,0,0,0,0,0,251,255,0,255,170,0,255,0,0,255,170,0,251,255,0,0,0,0,251,255,0,255,170,0,255,0,0,255,255,255,255,0,0,255,170,0,251,255,0,0,0,0,251,255,0,255,170,0,255,0,0,255,170,0,251,255,0,0,0,0,0,0,0,0,0,0,251,255,0,255,170,0,251,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,251,255,0,0,0,0,0,0,0,0,0,0]});
+
 
         return This;
     }
