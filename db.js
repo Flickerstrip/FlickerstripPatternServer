@@ -10,6 +10,7 @@ var config    = require(path.join(__dirname, 'config', 'config.json'))[env];
 var forceSync = false;
 
 module.exports = (function () {
+    setTimeout(function() {
     this.sequelize = new Sequelize(config.database, config.username, config.password, config);
 
     this.phpbb = new Sequelize(config.phpbb.database, config.phpbb.username, config.phpbb.password, config.phpbb);
@@ -126,6 +127,8 @@ module.exports = (function () {
         });
 */
     });
+
+    }.bind(this),5000);
 
     return this;
 })()

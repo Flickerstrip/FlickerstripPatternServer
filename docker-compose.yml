@@ -1,0 +1,40 @@
+version: "3.3"
+services:
+    mysql:
+        image: mysql:8.0.21
+        container_name: mysql
+        networks:
+            - internal
+        labels:
+            - traefik.enable=false
+        volumes:
+            - ./db:/var/lib/mysql
+        environment:
+            - MYSQL_ROOT_PASSWORD=password
+        ports:
+            - 3306:3306
+        restart: "no"
+    node:
+        build: .
+        image: lightworks:latest
+        networks:
+            - web
+            - internal
+        labels:
+            - traefik.backend=lightwork
+            - traefik.frontend.rule=Host:lightwork.hohmbody.com
+            - traefik.docker.network=web
+            - traefik.port=8080
+        depends_on:
+            - mysql
+        environment:
+            - NODE_ENV=production
+        ports:
+            - 9090:8080
+        restart: "no"
+
+networks:
+    web:
+        external: true
+    internal:
+        external: false
